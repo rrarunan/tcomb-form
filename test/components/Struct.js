@@ -45,8 +45,8 @@ test('Struct', function (tape) {
 
     tape.strictEqual(
       getLocals({type: Person}).disabled,
-      null,
-      'default disabled should be null');
+      undefined,
+      'default disabled should be undefined');
 
     tape.strictEqual(
       getLocals({type: Person}, {disabled: true}).disabled,
@@ -121,8 +121,8 @@ test('Struct', function (tape) {
 
     tape.strictEqual(
       getLocals({type: Person}).error,
-      null,
-      'default error should be null');
+      undefined,
+      'default error should be undefined');
 
     tape.strictEqual(
       getLocals({type: Person}, {error: 'myerror'}).error,

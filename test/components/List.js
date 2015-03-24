@@ -28,8 +28,8 @@ test('List', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.list(t.Str)}).disabled,
-      null,
-      'default disabled should be null');
+      undefined,
+      'default disabled should be undefined');
 
     tape.strictEqual(
       getLocals({type: t.list(t.Str)}, {disabled: true}).disabled,
@@ -48,7 +48,7 @@ test('List', function (tape) {
     tape.strictEqual(
       getLocals({type: t.list(t.Str)}, null, ['a']).items[0].buttons[0].label,
       'Remove',
-      'default disableRemove should be null');
+      'default disableRemove button should be "Remove"');
 
     tape.strictEqual(
       getLocals({type: t.list(t.Str)}, {disableRemove: true}, ['a']).items[0].buttons[0].label,
@@ -104,8 +104,8 @@ test('List', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.list(t.Str)}).error,
-      null,
-      'default error should be null');
+      undefined,
+      'default error should be undefined');
 
     tape.strictEqual(
       getLocals({type: t.list(t.Str)}, {error: 'myerror'}).error,

@@ -235,87 +235,172 @@ var React = require('react');
 var t = require('tcomb-validation');
 var api = require('../api');
 var skin = require('../skin');
-var shouldComponentUpdate = require('./shouldComponentUpdate');
-var getError = require('../util/getError');
-var merge = require('../util/merge');
-var uuid = require('../util/uuid');
 var compile = require('uvdom/react').compile;
+var extend = require('../util/extend');
+var Component = require('./Component');
 var debug = require('debug')('component:Checkbox');
 
-function normalize(value) {
-  return !!t.maybe(t.Bool)(value);
+function Checkbox(props) {
+  Component.call(this, props);
 }
 
-var Checkbox = React.createClass({
+extend(Checkbox, Component);
 
-  displayName: 'Checkbox',
+Checkbox.prototype.getStateValue = function (value) {
+  return !!t.maybe(t.Bool)(value);
+};
 
-  getInitialState: function () {
-    return {
-      hasError: false,
-      value: normalize(this.props.value)
-    };
-  },
+Checkbox.prototype.getTemplate = function () {
+  return this.props.options.template || this.props.ctx.templates.checkbox;
+};
 
-  componentWillReceiveProps: function (props) {
-    this.setState({value: normalize(props.value)});
-  },
+Checkbox.prototype.getLabel = function () {
+  return Component.prototype.getLabel.call(this) || this.props.ctx.getDefaultLabel(); // checkboxes must have a label
+};
 
-  shouldComponentUpdate: shouldComponentUpdate,
+Checkbox.prototype.getLocals = function () {
+  return {
+    autoFocus: this.props.options.autoFocus,
+    config: this.getConfig(),
+    disabled: this.props.options.disabled,
+    error: this.getError(),
+    hasError: this.hasError(),
+    help: this.props.options.help,
+    id: this.getId(),
+    label: this.getLabel(),
+    name: this.getName(),
+    onChange: this.onChange.bind(this),
+    value: this.getFormattedValue(),
+    template: this.getTemplate(),
+    className: this.props.options.className
+  };
+};
 
-  onChange: function (value) {
-    value = normalize(value);
-    this.setState({value: value}, function () {
-      this.props.onChange(value);
-    }.bind(this));
-  },
-
-  getValue: function () {
-    var result = t.validate(this.state.value, this.props.ctx.report.type);
-    this.setState({hasError: !result.isValid()});
-    return result;
-  },
-
-  getLocals: function () {
-    var opts = new api.Checkbox(this.props.options || {});
-    var ctx = this.props.ctx;
-    t.assert(!ctx.report.maybe, 'maybe booleans are not supported');
-    t.assert(ctx.report.innerType === t.Bool, 'checkboxes support only booleans');
-    var id = opts.id || this._rootNodeID || uuid();
-    var name = opts.name || ctx.name || id;
-    debug('render() called for `%s` field', name);
-
-    // handle labels
-    var label = opts.label || ctx.getDefaultLabel(); // checkboxes must have a label
-
-    var value = this.state.value;
-    return {
-      autoFocus: opts.autoFocus,
-      config: merge(ctx.config, opts.config),
-      disabled: opts.disabled,
-      error: getError(opts.error, value),
-      hasError: opts.hasError || this.state.hasError,
-      help: opts.help,
-      id: id,
-      label: label,
-      name: name,
-      onChange: this.onChange,
-      value: value,
-      template: opts.template || ctx.templates.checkbox,
-      className: opts.className
-    };
-  },
-
-  render: function () {
-    var locals = this.getLocals();
-    return compile(locals.template(new skin.Checkbox(locals)));
-  }
-
-});
+Checkbox.prototype.render = function () {
+  new api.Checkbox(this.props.options);
+  var locals = this.getLocals();
+  debug('render() called for `%s` field', locals.name);
+  return compile(locals.template(new skin.Checkbox(locals)));
+};
 
 module.exports = Checkbox;
 
-},{"../api":2,"../skin":14,"../util/getError":16,"../util/merge":20,"../util/uuid":22,"./shouldComponentUpdate":10,"debug":23,"react":182,"tcomb-validation":195,"uvdom/react":221}],4:[function(require,module,exports){
+},{"../api":2,"../skin":14,"../util/extend":16,"./Component":4,"debug":23,"react":182,"tcomb-validation":195,"uvdom/react":221}],4:[function(require,module,exports){
+'use strict';
+
+var React = require('react');
+var t = require('tcomb-validation');
+var merge = require('../util/merge');
+var uuid = require('../util/uuid');
+var extend = require('../util/extend');
+
+function Component(props) {
+  React.Component.call(this, props);
+  this.state = {
+    hasError: false,
+    value: this.getStateValue(this.props.value)
+  };
+}
+
+extend(Component, React.Component);
+
+Component.defaultProps = {options: {}};
+
+Component.prototype.getStateValue = function (value) {
+  return value;
+};
+
+Component.prototype.componentWillReceiveProps = function (props) {
+  this.setState({value: this.getStateValue(props.value)});
+};
+
+Component.prototype.shouldComponentUpdate = function (nextProps, nextState) {
+  return nextState.value !== this.state.value ||
+    nextState.hasError !== this.state.hasError ||
+    nextProps.value !== this.props.value ||
+    nextProps.options !== this.props.options ||
+    nextProps.ctx.report.type !== this.props.ctx.report.type;
+};
+
+Component.prototype.getValue = function () {
+  var result = t.validate(this.state.value, this.props.ctx.report.type);
+  this.setState({hasError: !result.isValid()});
+  return result;
+};
+
+Component.prototype.getParsedValue = function (value) {
+  var transformer = this.getTransformer();
+  if (transformer) {
+    value = transformer.parse(value);
+  }
+  return value;
+};
+
+Component.prototype.onChange = function (value) {
+  value = this.getParsedValue(value);
+  value = this.getStateValue(value);
+  this.setState({value: value}, function () {
+    this.props.onChange(value);
+  }.bind(this));
+};
+
+Component.prototype.getId = function () {
+  return this.props.options.id || this._rootNodeID || uuid();
+};
+
+Component.prototype.getName = function () {
+  return this.props.options.name || this.props.ctx.name || this.getId();
+};
+
+Component.prototype.getLabel = function () {
+  var label = this.props.options.label; // always use the option value if is manually set
+  if (!label && this.props.ctx.auto === 'labels') {
+    // add automatically a label only if there is not a label
+    // and the 'labels' auto option is turned on
+    label = this.props.ctx.getDefaultLabel();
+  }
+  return label;
+};
+
+Component.prototype.getPlaceholder = function () {
+  var placeholder = this.props.options.placeholder; // always use the option value if is manually set
+  if (!this.getLabel() && !placeholder && this.props.ctx.auto === 'placeholders') {
+    // add automatically a placeholder only if there is not a label
+    // nor a placeholder manually set and the 'placeholders' auto option is turned on
+    placeholder = this.props.ctx.getDefaultLabel();
+  }
+  return placeholder;
+};
+
+Component.prototype.getTransformer = function () {
+  return this.props.options.transformer || require('../config').transformers[t.getTypeName(this.props.ctx.report.innerType)];
+};
+
+Component.prototype.getConfig = function () {
+  return merge(this.props.ctx.config, this.props.options.config);
+};
+
+Component.prototype.getError = function () {
+  var error = this.props.options.error;
+  return t.Func.is(error) ? error(this.state.value) : error;
+};
+
+Component.prototype.hasError = function () {
+  return this.props.options.hasError || this.state.hasError;
+};
+
+Component.prototype.getFormattedValue = function () {
+  var value = this.state.value;
+  var transformer = this.getTransformer();
+  if (transformer) {
+    value = transformer.format(value);
+  }
+  return value;
+};
+
+module.exports = Component;
+
+},{"../config":11,"../util/extend":16,"../util/merge":20,"../util/uuid":22,"react":182,"tcomb-validation":195}],5:[function(require,module,exports){
 'use strict';
 
 var React = require('react');
@@ -362,21 +447,21 @@ var Form = React.createClass({
 
 module.exports = Form;
 
-},{"../api":2,"../config":11,"../getComponent":12,"../util/getReport":18,"react":182}],5:[function(require,module,exports){
+},{"../api":2,"../config":11,"../getComponent":12,"../util/getReport":18,"react":182}],6:[function(require,module,exports){
 'use strict';
 
 var React = require('react');
 var t = require('tcomb-validation');
-var shouldComponentUpdate = require('./shouldComponentUpdate');
-var getComponent = require('../getComponent');
 var api = require('../api');
 var skin = require('../skin');
-var getError = require('../util/getError');
+var compile = require('uvdom/react').compile;
 var merge = require('../util/merge');
+var extend = require('../util/extend');
 var move = require('../util/move');
 var uuid = require('../util/uuid');
+var getComponent = require('../getComponent');
 var getReport = require('../util/getReport');
-var compile = require('uvdom/react').compile;
+var Component = require('./Component');
 var debug = require('debug')('component:List');
 
 function justify(value, keys) {
@@ -388,662 +473,551 @@ function justify(value, keys) {
   return ret;
 }
 
-function normalize(value) {
-  t.maybe(t.Arr)(value);
-  return value || [];
+function List(props) {
+  Component.call(this, props);
+  this.state.keys = this.state.value.map(uuid);
 }
 
-var List = React.createClass({
+extend(List, Component);
 
-  displayName: 'List',
+List.prototype.getStateValue = function (value) {
+  t.maybe(t.Arr)(value);
+  return value || [];
+};
 
-  getInitialState: function () {
-    var value = normalize(this.props.value);
+List.prototype.onChange = function(value, keys) {
+  this.setState({value: value, keys: keys}, function () {
+    this.props.onChange(value);
+  }.bind(this));
+};
+
+List.prototype.getValue = function () {
+  var report = this.props.ctx.report;
+  var value = [];
+  var errors = [];
+  var hasError = false;
+  var result;
+
+  for (var i = 0, len = this.state.value.length ; i < len ; i++ ) {
+    result = this.refs[i].getValue();
+    errors = errors.concat(result.errors);
+    value.push(result.value);
+  }
+
+  // handle subtype
+  if (report.subtype && errors.length === 0) {
+    result = t.validate(value, report.type);
+    hasError = !result.isValid();
+    errors = errors.concat(result.errors);
+  }
+
+  this.setState({hasError: hasError});
+  return new t.ValidationResult({errors: errors, value: value});
+};
+
+List.prototype.addItem = function (evt) {
+  evt.preventDefault();
+  var value = this.state.value.concat(null);
+  var keys = this.state.keys.concat(uuid());
+  this.onChange(value, keys);
+};
+
+List.prototype.onItemChange = function (itemIndex, itemValue) {
+  var value = this.state.value.slice();
+  value[itemIndex] = itemValue;
+  this.onChange(value, this.state.keys);
+};
+
+List.prototype.removeItem = function (i, evt) {
+  evt.preventDefault();
+  var value = this.state.value.slice();
+  value.splice(i, 1);
+  var keys = this.state.keys.slice();
+  keys.splice(i, 1);
+  this.onChange(value, keys);
+};
+
+List.prototype.moveUpItem = function (i, evt) {
+  evt.preventDefault();
+  if (i > 0) {
+    this.onChange(
+      move(this.state.value.slice(), i, i - 1),
+      move(this.state.keys.slice(), i, i - 1)
+    );
+  }
+};
+
+List.prototype.moveDownItem = function (i, evt) {
+  evt.preventDefault();
+  if (i < this.state.value.length - 1) {
+    this.onChange(
+      move(this.state.value.slice(), i, i + 1),
+      move(this.state.keys.slice(), i, i + 1)
+    );
+  }
+};
+
+List.prototype.getI18n = function () {
+  return this.props.options.i18n || this.props.ctx.i18n;
+};
+
+List.prototype.getTemplates = function () {
+  return merge(this.props.ctx.templates, this.props.options.templates);
+};
+
+List.prototype.getItems = function () {
+  var auto = this.getAuto();
+  var templates = this.getTemplates();
+  var value = this.getFormattedValue();
+  var name = this.props.ctx.name;
+  var config = this.getConfig();
+  var i18n =  this.getI18n();
+  var itemType = this.props.ctx.report.innerType.meta.type;
+  var factory = React.createFactory(getComponent(itemType, this.props.options.item));
+  var items = value.map(function (value, i) {
+    var buttons = [];
+    if (!this.props.options.disableRemove) { buttons.push({ label: i18n.remove, click: this.removeItem.bind(this, i) }); }
+    if (!this.props.options.disableOrder)   { buttons.push({ label: i18n.up, click: this.moveUpItem.bind(this, i) }); }
+    if (!this.props.options.disableOrder)   { buttons.push({ label: i18n.down, click: this.moveDownItem.bind(this, i) }); }
     return {
-      hasError: false,
-      value: value,
-      keys: value.map(uuid)
+      input: factory({
+        ref: i,
+        type: itemType,
+        options: this.props.options.item,
+        value: value,
+        onChange: this.onItemChange.bind(this, i),
+        ctx: new api.Context({
+          auto:       auto,
+          config:     config,
+          i18n:       i18n,
+          label:      null,
+          name:       name + '[' + i + ']',
+          report:     new getReport(itemType),
+          templates:  templates
+        })
+      }),
+      key: this.state.keys[i],
+      buttons: buttons
     };
-  },
+  }.bind(this));
+  return items;
+};
 
-  componentWillReceiveProps: function (props) {
-    var value = normalize(props.value);
-    this.setState({
-      value: value,
-      keys: justify(value, this.state.keys)
-    });
-  },
+List.prototype.getAuto = function () {
+  return this.props.options.auto || this.props.ctx.auto;
+};
 
-  shouldComponentUpdate: shouldComponentUpdate,
+List.prototype.getLegend = function () {
+  var legend = this.props.options.legend; // always use the option value if is manually set
+  if (!legend && this.getAuto() === 'labels') {
+    // add automatically a legend only if there is not a legend
+    // and the 'labels' auto option is turned on
+    legend = this.props.ctx.getDefaultLabel();
+  }
+  return legend;
+};
 
-  onChange: function (value, keys) {
-    this.setState({value: value, keys: keys}, function () {
-      this.props.onChange(value);
-    }.bind(this));
-  },
+List.prototype.getLocals = function () {
+  var i18n = this.getI18n();
+  return {
+    add: this.props.options.disableAdd ? null : {
+      label: i18n.add,
+      click: this.addItem.bind(this)
+    },
+    config: this.getConfig(),
+    disabled: this.props.options.disabled,
+    error: this.getError(),
+    hasError: this.hasError(),
+    help: this.props.options.help,
+    items: this.getItems(),
+    legend: this.getLegend(),
+    value: this.getFormattedValue(),
+    templates: this.getTemplates(),
+    className: this.props.options.className
+  };
+};
 
-  getValue: function () {
-    var report = this.props.ctx.report;
-    var value = [];
-    var errors = [];
-    var hasError = false;
-    var result;
+List.prototype.render = function () {
+  new api.List(this.props.options);
+  var locals = this.getLocals();
+  debug('render() called for `%s` field', locals.name || 'top level');
+  return compile(locals.templates.list(new skin.List(locals)));
+};
 
-    for (var i = 0, len = this.state.value.length ; i < len ; i++ ) {
-      result = this.refs[i].getValue();
+module.exports = List;
+
+},{"../api":2,"../getComponent":12,"../skin":14,"../util/extend":16,"../util/getReport":18,"../util/merge":20,"../util/move":21,"../util/uuid":22,"./Component":4,"debug":23,"react":182,"tcomb-validation":195,"uvdom/react":221}],7:[function(require,module,exports){
+'use strict';
+
+var React = require('react');
+var t = require('tcomb-validation');
+var api = require('../api');
+var skin = require('../skin');
+var compile = require('uvdom/react').compile;
+var extend = require('../util/extend');
+var getOptionsOfEnum = require('../util/getOptionsOfEnum');
+var Component = require('./Component');
+var debug = require('debug')('component:Radio');
+
+function Radio(props) {
+  Component.call(this, props);
+}
+
+extend(Radio, Component);
+
+Radio.prototype.getStateValue = function (value) {
+  return t.maybe(api.SelectValue)(value);
+};
+
+Radio.prototype.getEnum = function () {
+  return this.props.ctx.report.innerType;
+};
+
+Radio.prototype.getOptions = function () {
+  var options = this.props.options.options ? this.props.options.options.slice() : getOptionsOfEnum(this.getEnum());
+  // sort opts
+  if (this.props.options.order) {
+    options.sort(api.Order.getComparator(this.props.options.order));
+  }
+  return options;
+};
+
+Radio.prototype.getTemplate = function () {
+  return this.props.options.template || this.props.ctx.templates.radio;
+};
+
+Radio.prototype.getLocals = function () {
+  return {
+    autoFocus: this.props.options.autoFocus,
+    config: this.getConfig(),
+    disabled: this.props.options.disabled,
+    error: this.getError(),
+    hasError: this.hasError(),
+    help: this.props.options.help,
+    id: this.getId(),
+    label: this.getLabel(),
+    name: this.getName(),
+    onChange: this.onChange.bind(this),
+    options: this.getOptions(),
+    value: this.getFormattedValue(),
+    template: this.getTemplate(),
+    className: this.props.options.className
+  };
+};
+
+Radio.prototype.render = function () {
+  new api.Radio(this.props.options);
+  var locals = this.getLocals();
+  debug('render() called for `%s` field', locals.name);
+  return compile(locals.template(new skin.Radio(locals)));
+};
+
+module.exports = Radio;
+
+},{"../api":2,"../skin":14,"../util/extend":16,"../util/getOptionsOfEnum":17,"./Component":4,"debug":23,"react":182,"tcomb-validation":195,"uvdom/react":221}],8:[function(require,module,exports){
+'use strict';
+
+var React = require('react');
+var t = require('tcomb-validation');
+var api = require('../api');
+var skin = require('../skin');
+var compile = require('uvdom/react').compile;
+var extend = require('../util/extend');
+var getOptionsOfEnum = require('../util/getOptionsOfEnum');
+var getReport = require('../util/getReport');
+var Component = require('./Component');
+var debug = require('debug')('component:Select');
+
+function Select(props) {
+  Component.call(this, props);
+}
+
+extend(Select, Component);
+
+Select.prototype.getStateValue = function (value) {
+  return t.maybe(api.SelectValue)(value);
+};
+
+Select.prototype.getEnum = function () {
+  var Enum = this.props.ctx.report.innerType;
+  return this.isMultiple() ? getReport(Enum.meta.type).innerType : Enum;
+};
+
+Select.prototype.isMultiple = function () {
+  var Enum = this.props.ctx.report.innerType;
+  return Enum.meta.kind === 'list';
+};
+
+Select.prototype.getNullOption = function () {
+  return this.props.options.nullOption || {value: '', text: '-'};
+};
+
+Select.prototype.getOptions = function () {
+  var options = this.props.options.options ? this.props.options.options.slice() : getOptionsOfEnum(this.getEnum());
+  // sort opts
+  if (this.props.options.order) {
+    options.sort(api.Order.getComparator(this.props.options.order));
+  }
+  // add a `null` option in first position
+  var nullOption = this.getNullOption();
+  if (!this.isMultiple() && this.props.options.nullOption !== false) {
+    options.unshift(nullOption);
+  }
+  return options;
+};
+
+Select.prototype.getTemplate = function () {
+  return this.props.options.template || this.props.ctx.templates.select;
+};
+
+Select.prototype.onChange = function (value) {
+  if (value === this.getNullOption().value) {
+    value = null;
+  }
+  Component.prototype.onChange.call(this, value);
+};
+
+Select.prototype.getLocals = function () {
+  return {
+    autoFocus: this.props.options.autoFocus,
+    config: this.getConfig(),
+    disabled: this.props.options.disabled,
+    error: this.getError(),
+    hasError: this.hasError(),
+    help: this.props.options.help,
+    id: this.getId(),
+    label: this.getLabel(),
+    name: this.getName(),
+    multiple: this.isMultiple(),
+    onChange: this.onChange.bind(this),
+    options: this.getOptions(),
+    value: this.getFormattedValue(),
+    template: this.getTemplate(),
+    className: this.props.options.className
+  };
+};
+
+Select.prototype.render = function () {
+  new api.Select(this.props.options);
+  var locals = this.getLocals();
+  debug('render() called for `%s` field', locals.name);
+  return compile(locals.template(new skin.Select(locals)));
+};
+
+module.exports = Select;
+
+},{"../api":2,"../skin":14,"../util/extend":16,"../util/getOptionsOfEnum":17,"../util/getReport":18,"./Component":4,"debug":23,"react":182,"tcomb-validation":195,"uvdom/react":221}],9:[function(require,module,exports){
+'use strict';
+
+var React = require('react');
+var t = require('tcomb-validation');
+var api = require('../api');
+var skin = require('../skin');
+var compile = require('uvdom/react').compile;
+var extend = require('../util/extend');
+var getComponent = require('../getComponent');
+var merge = require('../util/merge');
+var humanize = require('../util/humanize');
+var getReport = require('../util/getReport');
+var Component = require('./Component');
+var debug = require('debug')('component:Struct');
+
+function Struct(props) {
+  Component.call(this, props);
+}
+
+extend(Struct, Component);
+
+Struct.prototype.getStateValue = function (value) {
+  t.maybe(t.Obj)(value);
+  return value || {};
+};
+
+Struct.prototype.getTypeProps = function () {
+  return this.props.ctx.report.innerType.meta.props;
+};
+
+Struct.prototype.getOrder = function () {
+  return this.props.options.order || Object.keys(this.getTypeProps());
+};
+
+Struct.prototype.getAuto = function () {
+  return this.props.options.auto || this.props.ctx.auto;
+};
+
+Struct.prototype.getTemplates = function () {
+  return merge(this.props.ctx.templates, this.props.options.templates);
+};
+
+Struct.prototype.getI18n = function () {
+  return this.props.options.i18n || this.props.ctx.i18n;
+};
+
+Struct.prototype.onChange = function (fieldName, fieldValue) {
+  var value = t.mixin({}, this.state.value);
+  value[fieldName] = fieldValue;
+  this.setState({value: value}, function () {
+    this.props.onChange(value);
+  }.bind(this));
+};
+
+Struct.prototype.getValue = function () {
+  var report = this.props.ctx.report;
+  var value = {};
+  var errors = [];
+  var hasError = false;
+  var result;
+
+  for (var ref in this.refs) {
+    if (this.refs.hasOwnProperty(ref)) {
+      result = this.refs[ref].getValue();
       errors = errors.concat(result.errors);
-      value.push(result.value);
+      value[ref] = result.value;
     }
+  }
 
+  if (errors.length === 0) {
+    value = new report.innerType(value);
     // handle subtype
     if (report.subtype && errors.length === 0) {
       result = t.validate(value, report.type);
       hasError = !result.isValid();
       errors = errors.concat(result.errors);
     }
-
-    this.setState({hasError: hasError});
-    return new t.ValidationResult({errors: errors, value: value});
-  },
-
-  addItem: function (evt) {
-    evt.preventDefault();
-    var value = this.state.value.concat(null);
-    var keys = this.state.keys.concat(uuid());
-    this.onChange(value, keys);
-  },
-
-  onItemChange: function (itemIndex, itemValue) {
-    var value = this.state.value.slice();
-    value[itemIndex] = itemValue;
-    this.onChange(value, this.state.keys);
-  },
-
-  removeItem: function (i, evt) {
-    evt.preventDefault();
-    var value = this.state.value.slice();
-    value.splice(i, 1);
-    var keys = this.state.keys.slice();
-    keys.splice(i, 1);
-    this.onChange(value, keys);
-  },
-
-  moveUpItem: function (i, evt) {
-    evt.preventDefault();
-    if (i > 0) {
-      this.onChange(
-        move(this.state.value.slice(), i, i - 1),
-        move(this.state.keys.slice(), i, i - 1)
-      );
-    }
-  },
-
-  moveDownItem: function (i, evt) {
-    evt.preventDefault();
-    if (i < this.state.value.length - 1) {
-      this.onChange(
-        move(this.state.value.slice(), i, i + 1),
-        move(this.state.keys.slice(), i, i + 1)
-      );
-    }
-  },
-
-  getLocals: function () {
-    var opts = new api.List(this.props.options || {});
-    var ctx = this.props.ctx;
-    debug('render() called for `%s` field', ctx.name);
-    t.assert(!ctx.report.maybe, 'maybe lists are not supported');
-    var auto = opts.auto || ctx.auto;
-    var i18n = opts.i18n || ctx.i18n;
-    var value = t.Arr(this.state.value || []);
-
-    // handle legend
-    var legend = opts.legend; // always use the option value if is manually set
-    if (!legend && ctx.auto === 'labels') {
-      // add automatically a legend only if there is not a legend
-      // and the 'labels' auto option is turned on
-      legend = ctx.getDefaultLabel();
-    }
-
-    var config = merge(ctx.config, opts.config);
-    var templates = merge(ctx.templates, opts.templates);
-    var itemType = ctx.report.innerType.meta.type;
-    var factory = React.createFactory(getComponent(itemType, opts.item));
-    var items = value.map(function (value, i) {
-      var buttons = [];
-      if (!opts.disableRemove) { buttons.push({ label: i18n.remove, click: this.removeItem.bind(this, i) }); }
-      if (!opts.disableOrder)   { buttons.push({ label: i18n.up, click: this.moveUpItem.bind(this, i) }); }
-      if (!opts.disableOrder)   { buttons.push({ label: i18n.down, click: this.moveDownItem.bind(this, i) }); }
-      return {
-        input: factory({
-          ref: i,
-          type: itemType,
-          options: opts.item,
-          value: value,
-          onChange: this.onItemChange.bind(this, i),
-          ctx: new api.Context({
-            auto:       auto,
-            config:     config,
-            i18n:       i18n,
-            label:      null,
-            name:       ctx.name + '[' + i + ']',
-            report:     new getReport(itemType),
-            templates:  templates
-          })
-        }),
-        key: this.state.keys[i],
-        buttons: buttons
-      };
-    }.bind(this));
-    return {
-      add: opts.disableAdd ? null : {
-        label: i18n.add,
-        click: this.addItem
-      },
-      config: config,
-      disabled: opts.disabled,
-      error: getError(opts.error, value),
-      hasError: opts.hasError || this.state.hasError,
-      help: opts.help,
-      items: items,
-      legend: legend,
-      value: value,
-      templates: templates,
-      className: opts.className
-    };
-  },
-
-  render: function () {
-    var locals = this.getLocals();
-    return compile(locals.templates.list(new skin.List(locals)));
   }
 
-});
+  this.setState({hasError: hasError});
+  return new t.ValidationResult({errors: errors, value: value});
+};
 
-module.exports = List;
-
-
-},{"../api":2,"../getComponent":12,"../skin":14,"../util/getError":16,"../util/getReport":18,"../util/merge":20,"../util/move":21,"../util/uuid":22,"./shouldComponentUpdate":10,"debug":23,"react":182,"tcomb-validation":195,"uvdom/react":221}],6:[function(require,module,exports){
-'use strict';
-
-var React = require('react');
-var t = require('tcomb-validation');
-var api = require('../api');
-var skin = require('../skin');
-var shouldComponentUpdate = require('./shouldComponentUpdate');
-var getError = require('../util/getError');
-var merge = require('../util/merge');
-var uuid = require('../util/uuid');
-var getOptionsOfEnum = require('../util/getOptionsOfEnum');
-var compile = require('uvdom/react').compile;
-var debug = require('debug')('component:Radio');
-
-function normalize(value) {
-  return t.maybe(api.SelectValue)(value);
-}
-
-var Radio = React.createClass({
-
-  displayName: 'Radio',
-
-  getInitialState: function () {
-    return {
-      hasError: false,
-      value: normalize(this.props.value)
-    };
-  },
-
-  componentWillReceiveProps: function (props) {
-    this.setState({value: normalize(props.value)});
-  },
-
-  shouldComponentUpdate: shouldComponentUpdate,
-
-  onChange: function (value) {
-    value = normalize(value);
-    this.setState({value: value}, function () {
-      this.props.onChange(value);
-    }.bind(this));
-  },
-
-  getValue: function () {
-    var result = t.validate(this.state.value, this.props.ctx.report.type);
-    this.setState({hasError: !result.isValid()});
-    return result;
-  },
-
-  getLocals: function () {
-    var opts = new api.Radio(this.props.options || {});
-    var ctx = this.props.ctx;
-    var id = opts.id || this._rootNodeID || uuid();
-    var name = opts.name || ctx.name || id;
-    debug('render() called for `%s` field', name);
-
-    // handle labels
-    var label = opts.label; // always use the option value if is manually set
-    if (!label && ctx.auto === 'labels') {
-      // add automatically a label only if there is not a label
-      // and the 'labels' auto option is turned on
-      label = ctx.getDefaultLabel();
+Struct.prototype.getInputs = function () {
+  var auto = this.getAuto();
+  var name = this.props.ctx.name;
+  var value = this.getFormattedValue();
+  var props = this.getTypeProps();
+  var config = this.getConfig();
+  var i18n =  this.getI18n();
+  var templates = this.getTemplates();
+  var inputs = {};
+  for (var prop in props) {
+    if (props.hasOwnProperty(prop)) {
+      var propType = props[prop];
+      var propOptions = this.props.options.fields ? this.props.options.fields[prop] : undefined;
+      inputs[prop] = React.createFactory(getComponent(propType, propOptions))({
+        key: prop,
+        ref: prop,
+        type: propType,
+        options: propOptions,
+        value: value[prop],
+        onChange: this.onChange.bind(this, prop),
+        ctx: new api.Context({
+          auto:       auto,
+          config:     config,
+          i18n:       i18n,
+          label:      humanize(prop),
+          name:       name ? name + '[' + prop + ']' : prop,
+          report:     new getReport(propType),
+          templates:  templates
+        })
+      });
     }
-
-    var options = opts.options ? opts.options.slice() : getOptionsOfEnum(ctx.report.innerType);
-    // sort opts
-    if (opts.order) {
-      options.sort(api.Order.getComparator(opts.order));
-    }
-    var value = this.state.value;
-    return {
-      autoFocus: opts.autoFocus,
-      config: merge(ctx.config, opts.config),
-      disabled: opts.disabled,
-      error: getError(opts.error, value),
-      hasError: opts.hasError || this.state.hasError,
-      help: opts.help,
-      id: id,
-      label: label,
-      name: name,
-      onChange: this.onChange,
-      options: options,
-      value: value,
-      template: opts.template || ctx.templates.radio,
-      className: opts.className
-    };
-  },
-
-  render: function () {
-    var locals = this.getLocals();
-    return compile(locals.template(new skin.Radio(locals)));
   }
+  return inputs;
+};
 
-});
-
-module.exports = Radio;
-
-},{"../api":2,"../skin":14,"../util/getError":16,"../util/getOptionsOfEnum":17,"../util/merge":20,"../util/uuid":22,"./shouldComponentUpdate":10,"debug":23,"react":182,"tcomb-validation":195,"uvdom/react":221}],7:[function(require,module,exports){
-'use strict';
-
-var React = require('react');
-var t = require('tcomb-validation');
-var api = require('../api');
-var skin = require('../skin');
-var shouldComponentUpdate = require('./shouldComponentUpdate');
-var getError = require('../util/getError');
-var getReport = require('../util/getReport');
-var merge = require('../util/merge');
-var uuid = require('../util/uuid');
-var getOptionsOfEnum = require('../util/getOptionsOfEnum');
-var compile = require('uvdom/react').compile;
-var debug = require('debug')('component:Select');
-
-function normalize(value) {
-  return t.maybe(api.SelectValue)(value);
-}
-
-var Select = React.createClass({
-
-  displayName: 'Select',
-
-  getInitialState: function () {
-    return {
-      hasError: false,
-      value: normalize(this.props.value)
-    };
-  },
-
-  componentWillReceiveProps: function (props) {
-    this.setState({value: normalize(props.value)});
-  },
-
-  shouldComponentUpdate: shouldComponentUpdate,
-
-  onChange: function (value) {
-    value = normalize(value);
-    this.setState({value: value}, function () {
-      this.props.onChange(value);
-    }.bind(this));
-  },
-
-  getValue: function () {
-    var result = t.validate(this.state.value, this.props.ctx.report.type);
-    this.setState({hasError: !result.isValid()});
-    return result;
-  },
-
-  getLocals: function () {
-    var opts = new api.Select(this.props.options || {});
-    var ctx = this.props.ctx;
-    var id = opts.id || this._rootNodeID || uuid();
-    var name = opts.name || ctx.name || id;
-    debug('render() called for `%s` field', name);
-    var Enum = ctx.report.innerType;
-    // handle `multiple` attribute
-    var multiple = false;
-    if (Enum.meta.kind === 'list') {
-      multiple = true;
-      Enum = getReport(Enum.meta.type).innerType;
-    }
-
-    // handle labels
-    var label = opts.label; // always use the option value if is manually set
-    if (!label && ctx.auto === 'labels') {
-      // add automatically a label only if there is not a label
-      // and the 'labels' auto option is turned on
-      label = ctx.getDefaultLabel();
-    }
-
-    var value = this.state.value;
-    var options = opts.options ? opts.options.slice() : getOptionsOfEnum(Enum);
-    // sort opts
-    if (opts.order) {
-      options.sort(api.Order.getComparator(opts.order));
-    }
-    // add a `null` option in first position
-    var nullOption = opts.nullOption || {value: '', text: '-'};
-    if (!multiple && opts.nullOption !== false) {
-      options.unshift(nullOption);
-    }
-    return {
-      autoFocus: opts.autoFocus,
-      config: merge(ctx.config, opts.config),
-      disabled: opts.disabled,
-      error: getError(opts.error, value),
-      hasError: opts.hasError || this.state.hasError,
-      help: opts.help,
-      id: id,
-      label: label,
-      name: name,
-      multiple: multiple,
-      onChange: function (value) {
-        if (value === nullOption.value) {
-          value = null;
-        }
-        this.onChange(value);
-      }.bind(this),
-      options: options,
-      value: value,
-      template: opts.template || ctx.templates.select,
-      className: opts.className
-    };
-  },
-
-  render: function () {
-    var locals = this.getLocals();
-    return compile(locals.template(new skin.Select(locals)));
+Struct.prototype.getLegend = function () {
+  var legend = this.props.options.legend; // always use the option value if is manually set
+  if (!legend && this.getAuto() === 'labels') {
+    // add automatically a legend only if there is not a legend
+    // and the 'labels' auto option is turned on
+    legend = this.props.ctx.getDefaultLabel();
   }
+  return legend;
+};
 
-});
+Struct.prototype.getLocals = function () {
+  return {
+    config: this.getConfig(),
+    disabled: this.props.options.disabled,
+    error: this.getError(),
+    hasError: this.hasError(),
+    help: this.props.options.help,
+    inputs: this.getInputs(),
+    legend: this.getLegend(),
+    order: this.getOrder(),
+    value: this.getFormattedValue(),
+    templates: this.getTemplates(),
+    className: this.props.options.className
+  };
+};
 
-module.exports = Select;
-
-},{"../api":2,"../skin":14,"../util/getError":16,"../util/getOptionsOfEnum":17,"../util/getReport":18,"../util/merge":20,"../util/uuid":22,"./shouldComponentUpdate":10,"debug":23,"react":182,"tcomb-validation":195,"uvdom/react":221}],8:[function(require,module,exports){
-'use strict';
-
-var React = require('react');
-var t = require('tcomb-validation');
-var shouldComponentUpdate = require('./shouldComponentUpdate');
-var getComponent = require('../getComponent');
-var api = require('../api');
-var skin = require('../skin');
-var getError = require('../util/getError');
-var merge = require('../util/merge');
-var humanize = require('../util/humanize');
-var getReport = require('../util/getReport');
-var compile = require('uvdom/react').compile;
-var debug = require('debug')('component:Struct');
-
-function normalize(value) {
-  t.maybe(t.Obj)(value);
-  return value || {};
-}
-
-var Struct = React.createClass({
-
-  displayName: 'Struct',
-
-  getInitialState: function () {
-    return {
-      hasError: false,
-      value: normalize(this.props.value)
-    };
-  },
-
-  componentWillReceiveProps: function (props) {
-    this.setState({value: normalize(props.value)});
-  },
-
-  shouldComponentUpdate: shouldComponentUpdate,
-
-  onChange: function (fieldName, fieldValue) {
-    var value = t.mixin({}, this.state.value);
-    value[fieldName] = fieldValue;
-    this.setState({value: value}, function () {
-      this.props.onChange(value);
-    }.bind(this));
-  },
-
-  getValue: function () {
-    var report = this.props.ctx.report;
-    var value = {};
-    var errors = [];
-    var hasError = false;
-    var result;
-
-    for (var ref in this.refs) {
-      if (this.refs.hasOwnProperty(ref)) {
-        result = this.refs[ref].getValue();
-        errors = errors.concat(result.errors);
-        value[ref] = result.value;
-      }
-    }
-
-    if (errors.length === 0) {
-      value = new report.innerType(value);
-      // handle subtype
-      if (report.subtype && errors.length === 0) {
-        result = t.validate(value, report.type);
-        hasError = !result.isValid();
-        errors = errors.concat(result.errors);
-      }
-    }
-
-    this.setState({hasError: hasError});
-    return new t.ValidationResult({errors: errors, value: value});
-  },
-
-  getLocals: function () {
-    var opts = new api.Struct(this.props.options || {});
-    var ctx = this.props.ctx;
-    debug('render() called for `%s` field', ctx.name);
-    t.assert(!ctx.report.maybe, 'maybe structs are not supported');
-    var auto =  opts.auto || ctx.auto;
-
-    // handle legend
-    var legend = opts.legend; // always use the option value if is manually set
-    if (!legend && ctx.auto === 'labels') {
-      // add automatically a legend only if there is not a legend
-      // and the 'labels' auto option is turned on
-      legend = ctx.getDefaultLabel();
-    }
-
-    var config = merge(ctx.config, opts.config);
-    var value = this.state.value;
-    var props = ctx.report.innerType.meta.props;
-    var i18n =  opts.i18n || ctx.i18n;
-    var templates = merge(ctx.templates, opts.templates);
-    var inputs = {};
-    for (var prop in props) {
-      if (props.hasOwnProperty(prop)) {
-        var propType = props[prop];
-        var propOptions = opts.fields ? opts.fields[prop] : null;
-        inputs[prop] = React.createFactory(getComponent(propType, propOptions))({
-          key: prop,
-          ref: prop,
-          type: propType,
-          options: propOptions,
-          value: value[prop],
-          onChange: this.onChange.bind(this, prop),
-          ctx: new api.Context({
-            auto:       auto,
-            config:     config,
-            i18n:       i18n,
-            label:      humanize(prop),
-            name:       ctx.name ? ctx.name + '[' + prop + ']' : prop,
-            report:     new getReport(propType),
-            templates:  templates
-          })
-        });
-      }
-    }
-    return {
-      config: config,
-      disabled: opts.disabled,
-      error: getError(opts.error, value),
-      hasError: opts.hasError || this.state.hasError,
-      help: opts.help,
-      inputs: inputs,
-      legend: legend,
-      order: opts.order || Object.keys(props),
-      value: value,
-      templates: templates,
-      className: opts.className
-    };
-  },
-
-  render: function () {
-    var locals = this.getLocals();
-    return compile(locals.templates.struct(new skin.Struct(locals)));
-  }
-
-});
+Struct.prototype.render = function () {
+  new api.Struct(this.props.options);
+  var locals = this.getLocals();
+  debug('render() called for `%s` field', locals.name || 'top level');
+  return compile(locals.templates.struct(new skin.Struct(locals)));
+};
 
 module.exports = Struct;
 
-},{"../api":2,"../getComponent":12,"../skin":14,"../util/getError":16,"../util/getReport":18,"../util/humanize":19,"../util/merge":20,"./shouldComponentUpdate":10,"debug":23,"react":182,"tcomb-validation":195,"uvdom/react":221}],9:[function(require,module,exports){
+},{"../api":2,"../getComponent":12,"../skin":14,"../util/extend":16,"../util/getReport":18,"../util/humanize":19,"../util/merge":20,"./Component":4,"debug":23,"react":182,"tcomb-validation":195,"uvdom/react":221}],10:[function(require,module,exports){
 'use strict';
 
 var React = require('react');
 var t = require('tcomb-validation');
 var api = require('../api');
 var skin = require('../skin');
-var shouldComponentUpdate = require('./shouldComponentUpdate');
-var getError = require('../util/getError');
-var merge = require('../util/merge');
-var uuid = require('../util/uuid');
-var config = require('../config');
 var compile = require('uvdom/react').compile;
+var extend = require('../util/extend');
+var Component = require('./Component');
 var debug = require('debug')('component:Textbox');
 
-function normalize(value) {
+function Textbox(props) {
+  Component.call(this, props);
+}
+
+extend(Textbox, Component);
+
+Textbox.prototype.getStateValue = function (value) {
   return (t.Str.is(value) && value.trim() === '') ? null :
     !t.Nil.is(value) ? value :
     null;
-}
+};
 
-var Textbox = React.createClass({
+Textbox.prototype.getTemplate = function () {
+  return this.props.options.template || this.props.ctx.templates.textbox;
+};
 
-  displayName: 'Textbox',
+Textbox.prototype.getLocals = function () {
+  return {
+    autoFocus: this.props.options.autoFocus,
+    config: this.getConfig(),
+    disabled: this.props.options.disabled,
+    error: this.getError(),
+    hasError: this.hasError(),
+    help: this.props.options.help,
+    id: this.getId(),
+    label: this.getLabel(),
+    name: this.getName(),
+    onChange: this.onChange.bind(this),
+    placeholder: this.getPlaceholder(),
+    type: this.props.options.type || 'text',
+    value: this.getFormattedValue(),
+    template: this.getTemplate(),
+    className: this.props.options.className
+  };
+};
 
-  getInitialState: function () {
-    return {
-      hasError: false,
-      value: normalize(this.props.value)
-    };
-  },
-
-  componentWillReceiveProps: function (props) {
-    this.setState({value: normalize(props.value)});
-  },
-
-  shouldComponentUpdate: shouldComponentUpdate,
-
-  onChange: function (value) {
-    value = normalize(value);
-    this.setState({value: value}, function () {
-      this.props.onChange(value);
-    }.bind(this));
-  },
-
-  getValue: function () {
-    var result = t.validate(this.state.value, this.props.ctx.report.type);
-    this.setState({hasError: !result.isValid()});
-    return result;
-  },
-
-  // useful for tests
-  getLocals: function () {
-    var opts = new api.Textbox(this.props.options || {});
-    var ctx = this.props.ctx;
-    var id = opts.id || this._rootNodeID || uuid();
-    var name = opts.name || ctx.name || id;
-    debug('render() called for `%s` field', name);
-
-    // handle labels
-    var label = opts.label; // always use the option value if is manually set
-    if (!label && ctx.auto === 'labels') {
-      // add automatically a label only if there is not a label
-      // and the 'labels' auto option is turned on
-      label = ctx.getDefaultLabel();
-    }
-
-    // handle placeholders
-    var placeholder = opts.placeholder; // always use the option value if is manually set
-    if (!label && !placeholder && ctx.auto === 'placeholders') {
-      // add automatically a placeholder only if there is not a label
-      // nor a placeholder manually set and the 'placeholders' auto option is turned on
-      placeholder = ctx.getDefaultLabel();
-    }
-
-    var value = this.state.value;
-    var transformer = opts.transformer || config.transformers[t.getTypeName(ctx.report.innerType)];
-    if (transformer) {
-      value = transformer.format(value);
-    }
-    return {
-      autoFocus: opts.autoFocus,
-      config: merge(ctx.config, opts.config),
-      disabled: opts.disabled,
-      error: getError(opts.error, value),
-      hasError: opts.hasError || this.state.hasError,
-      help: opts.help,
-      id: id,
-      label: label,
-      name: name,
-      onChange: function (value) {
-        if (transformer) {
-          value = transformer.parse(value);
-        }
-        this.onChange(value);
-      }.bind(this),
-      placeholder: placeholder,
-      type: opts.type || 'text',
-      value: value,
-      template: opts.template || ctx.templates.textbox,
-      className: opts.className
-    };
-  },
-
-  render: function () {
-    var locals = this.getLocals();
-    return compile(locals.template(new skin.Textbox(locals)));
-  }
-
-});
+Textbox.prototype.render = function () {
+  new api.Textbox(this.props.options);
+  var locals = this.getLocals();
+  debug('render() called for `%s` field', locals.name);
+  return compile(locals.template(new skin.Textbox(locals)));
+};
 
 module.exports = Textbox;
 
-},{"../api":2,"../config":11,"../skin":14,"../util/getError":16,"../util/merge":20,"../util/uuid":22,"./shouldComponentUpdate":10,"debug":23,"react":182,"tcomb-validation":195,"uvdom/react":221}],10:[function(require,module,exports){
-'use strict';
-
-module.exports = function (nextProps, nextState) {
-  return nextState.value !== this.state.value ||
-    nextState.hasError !== this.state.hasError ||
-    nextProps.value !== this.props.value ||
-    nextProps.options !== this.props.options ||
-    nextProps.ctx.report.type !== this.props.ctx.report.type;
-};
-
-},{}],11:[function(require,module,exports){
+},{"../api":2,"../skin":14,"../util/extend":16,"./Component":4,"debug":23,"react":182,"tcomb-validation":195,"uvdom/react":221}],11:[function(require,module,exports){
 'use strict';
 
 var api = require('./api');
@@ -1112,7 +1086,7 @@ function getComponent(type, options) {
 
 module.exports = getComponent;
 
-},{"./components/List":5,"./components/Select":7,"./components/Struct":8,"./components/Textbox":9,"./config":11,"tcomb-validation":195}],13:[function(require,module,exports){
+},{"./components/List":6,"./components/Select":8,"./components/Struct":9,"./components/Textbox":10,"./config":11,"tcomb-validation":195}],13:[function(require,module,exports){
 var t = require('tcomb-validation');
 
 t.form = {
@@ -1124,12 +1098,13 @@ t.form = {
   Checkbox: require('./components/Checkbox'),
   Radio:    require('./components/Radio'),
   Struct:   require('./components/Struct'),
-  List:     require('./components/List')
+  List:     require('./components/List'),
+  Component:require('./components/Component'),
 };
 
 module.exports = t;
 
-},{"./components/Checkbox":3,"./components/Form":4,"./components/List":5,"./components/Radio":6,"./components/Select":7,"./components/Struct":8,"./components/Textbox":9,"./config":11,"debug":23,"tcomb-validation":195}],14:[function(require,module,exports){
+},{"./components/Checkbox":3,"./components/Component":4,"./components/Form":5,"./components/List":6,"./components/Radio":7,"./components/Select":8,"./components/Struct":9,"./components/Textbox":10,"./config":11,"debug":23,"tcomb-validation":195}],14:[function(require,module,exports){
 'use strict';
 
 var React = require('react');
@@ -1552,7 +1527,7 @@ function select(locals) {
 
   function onChange(evt) {
     var value = locals.multiple ?
-      evt.target.options.filter(function (option) {
+      Array.prototype.slice.call(evt.target.options).filter(function (option) {
         return option.selected;
       }).map(function (option) {
         return option.value;
@@ -1802,15 +1777,20 @@ module.exports = {
 },{"../../skin":14,"tcomb-validation":195,"uvdom-bootstrap/form":197}],16:[function(require,module,exports){
 'use strict';
 
-var t = require('tcomb-validation');
-
-function getError(error, value) {
-  return t.Func.is(error) ? error(value) : error;
+function extend(Child, Parent) {
+  for (var key in Parent) {
+    if (Parent.hasOwnProperty(key)) {
+      Child[key] = Parent[key];
+    }
+  }
+  var superproto = Parent === null ? null : Parent.prototype;
+  Child.prototype = Object.create(superproto);
+  Child.prototype.constructor = Child;
 }
 
-module.exports = getError;
+module.exports = extend;
 
-},{"tcomb-validation":195}],17:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 'use strict';
 
 function getOptionsOfEnum(type) {
@@ -32170,8 +32150,8 @@ test('Checkbox', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.Bool}, {label: 'mylabel'}).disabled,
-      null,
-      'default disabled should be null');
+      undefined,
+      'default disabled should be undefined');
 
     tape.strictEqual(
       getLocals({type: t.Bool}, {label: 'mylabel', disabled: true}).disabled,
@@ -32260,8 +32240,8 @@ test('Checkbox', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.Bool}).error,
-      null,
-      'default error should be null');
+      undefined,
+      'default error should be undefined');
 
     tape.strictEqual(
       getLocals({type: t.Bool}, {error: 'myerror'}).error,
@@ -32328,8 +32308,8 @@ test('Checkbox', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.Bool}).autoFocus,
-      null,
-      'default autoFocus should be null');
+      undefined,
+      'default autoFocus should be undefined');
 
     tape.strictEqual(
       getLocals({type: t.Bool}, {autoFocus: true}).autoFocus,
@@ -32401,8 +32381,8 @@ test('List', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.list(t.Str)}).disabled,
-      null,
-      'default disabled should be null');
+      undefined,
+      'default disabled should be undefined');
 
     tape.strictEqual(
       getLocals({type: t.list(t.Str)}, {disabled: true}).disabled,
@@ -32421,7 +32401,7 @@ test('List', function (tape) {
     tape.strictEqual(
       getLocals({type: t.list(t.Str)}, null, ['a']).items[0].buttons[0].label,
       'Remove',
-      'default disableRemove should be null');
+      'default disableRemove button should be "Remove"');
 
     tape.strictEqual(
       getLocals({type: t.list(t.Str)}, {disableRemove: true}, ['a']).items[0].buttons[0].label,
@@ -32477,8 +32457,8 @@ test('List', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.list(t.Str)}).error,
-      null,
-      'default error should be null');
+      undefined,
+      'default error should be undefined');
 
     tape.strictEqual(
       getLocals({type: t.list(t.Str)}, {error: 'myerror'}).error,
@@ -32533,7 +32513,7 @@ test('List', function (tape) {
 
 
 
-},{"../../.":1,"../../lib/components/List":5,"../../lib/skins/bootstrap":15,"./util":261,"react":182,"react-vdom":27,"tape":183}],256:[function(require,module,exports){
+},{"../../.":1,"../../lib/components/List":6,"../../lib/skins/bootstrap":15,"./util":261,"react":182,"react-vdom":27,"tape":183}],256:[function(require,module,exports){
 'use strict';
 
 var test = require('tape');
@@ -32570,8 +32550,8 @@ test('Radio', function (tape) {
 
     tape.strictEqual(
       getLocals({type: Country}).disabled,
-      null,
-      'default disabled should be null');
+      undefined,
+      'default disabled should be undefined');
 
     tape.strictEqual(
       getLocals({type: Country}, {disabled: true}).disabled,
@@ -32589,8 +32569,8 @@ test('Radio', function (tape) {
 
     tape.strictEqual(
       getLocals({type: Country}).label,
-      null,
-      'should default to null');
+      undefined,
+      'should default to undefined');
 
     tape.strictEqual(
       getLocals({type: Country, label: 'defaultLabel', auto: 'labels'}).label,
@@ -32676,8 +32656,8 @@ test('Radio', function (tape) {
 
     tape.strictEqual(
       getLocals({type: Country}).error,
-      null,
-      'default error should be null');
+      undefined,
+      'default error should be undefined');
 
     tape.strictEqual(
       getLocals({type: Country}, {error: 'myerror'}).error,
@@ -32744,8 +32724,8 @@ test('Radio', function (tape) {
 
     tape.strictEqual(
       getLocals({type: Country}).autoFocus,
-      null,
-      'default autoFocus should be null');
+      undefined,
+      'default autoFocus should be undefined');
 
     tape.strictEqual(
       getLocals({type: Country}, {autoFocus: true}).autoFocus,
@@ -32772,8 +32752,8 @@ test('Radio', function (tape) {
         {value: 'US', text: 'Stati Uniti'}
       ]}).options,
       [
-        {value: 'IT', text: 'Italia', disabled: null},
-        {value: 'US', text: 'Stati Uniti', disabled: null}
+        {value: 'IT', text: 'Italia'},
+        {value: 'US', text: 'Stati Uniti'}
       ],
       'should handle `option` option');
 
@@ -32842,7 +32822,7 @@ test('Radio', function (tape) {
 
 
 
-},{"../../.":1,"../../lib/components/Radio":6,"../../lib/skins/bootstrap":15,"./util":261,"react":182,"react-vdom":27,"tape":183}],257:[function(require,module,exports){
+},{"../../.":1,"../../lib/components/Radio":7,"../../lib/skins/bootstrap":15,"./util":261,"react":182,"react-vdom":27,"tape":183}],257:[function(require,module,exports){
 'use strict';
 
 var test = require('tape');
@@ -32879,8 +32859,8 @@ test('Select', function (tape) {
 
     tape.strictEqual(
       getLocals({type: Country}).disabled,
-      null,
-      'default disabled should be null');
+      undefined,
+      'default disabled should be undefined');
 
     tape.strictEqual(
       getLocals({type: Country}, {disabled: true}).disabled,
@@ -32898,8 +32878,8 @@ test('Select', function (tape) {
 
     tape.strictEqual(
       getLocals({type: Country}).label,
-      null,
-      'should default to null');
+      undefined,
+      'should default to undefined');
 
     tape.strictEqual(
       getLocals({type: Country, label: 'defaultLabel', auto: 'labels'}).label,
@@ -32990,8 +32970,8 @@ test('Select', function (tape) {
 
     tape.strictEqual(
       getLocals({type: Country}).error,
-      null,
-      'default error should be null');
+      undefined,
+      'default error should be undefined');
 
     tape.strictEqual(
       getLocals({type: Country}, {error: 'myerror'}).error,
@@ -33058,8 +33038,8 @@ test('Select', function (tape) {
 
     tape.strictEqual(
       getLocals({type: Country}).autoFocus,
-      null,
-      'default autoFocus should be null');
+      undefined,
+      'default autoFocus should be undefined');
 
     tape.strictEqual(
       getLocals({type: Country}, {autoFocus: true}).autoFocus,
@@ -33088,8 +33068,8 @@ test('Select', function (tape) {
       ]}).options,
       [
         {value: '', text: '-'},
-        {value: 'IT', text: 'Italia', disabled: null},
-        {value: 'US', text: 'Stati Uniti', disabled: null}
+        {value: 'IT', text: 'Italia'},
+        {value: 'US', text: 'Stati Uniti'}
       ],
       'should handle `option` option');
 
@@ -33126,7 +33106,7 @@ test('Select', function (tape) {
     tape.deepEqual(
       getLocals({type: Country}, {nullOption: {value: '-1', text: 'my text'}}).options,
       [
-        {value: '-1', text: 'my text', disabled: null},
+        {value: '-1', text: 'my text'},
         {value: 'IT', text: 'Italy'},
         {value: 'US', text: 'United States'},
         {value: 'FR', text: 'France'}
@@ -33202,7 +33182,7 @@ test('Select', function (tape) {
 
 
 
-},{"../../.":1,"../../lib/components/Select":7,"../../lib/skins/bootstrap":15,"./util":261,"react":182,"react-vdom":27,"tape":183}],258:[function(require,module,exports){
+},{"../../.":1,"../../lib/components/Select":8,"../../lib/skins/bootstrap":15,"./util":261,"react":182,"react-vdom":27,"tape":183}],258:[function(require,module,exports){
 'use strict';
 
 var test = require('tape');
@@ -33250,8 +33230,8 @@ test('Struct', function (tape) {
 
     tape.strictEqual(
       getLocals({type: Person}).disabled,
-      null,
-      'default disabled should be null');
+      undefined,
+      'default disabled should be undefined');
 
     tape.strictEqual(
       getLocals({type: Person}, {disabled: true}).disabled,
@@ -33326,8 +33306,8 @@ test('Struct', function (tape) {
 
     tape.strictEqual(
       getLocals({type: Person}).error,
-      null,
-      'default error should be null');
+      undefined,
+      'default error should be undefined');
 
     tape.strictEqual(
       getLocals({type: Person}, {error: 'myerror'}).error,
@@ -33392,7 +33372,7 @@ test('Struct', function (tape) {
 
 
 
-},{"../../.":1,"../../lib/components/Struct":8,"../../lib/skins/bootstrap":15,"./util":261,"react":182,"react-vdom":27,"tape":183}],259:[function(require,module,exports){
+},{"../../.":1,"../../lib/components/Struct":9,"../../lib/skins/bootstrap":15,"./util":261,"react":182,"react-vdom":27,"tape":183}],259:[function(require,module,exports){
 'use strict';
 
 var test = require('tape');
@@ -33447,8 +33427,8 @@ test('Textbox', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.Str}).label,
-      null,
-      'should default to null');
+      undefined,
+      'should default to undefined');
 
     tape.strictEqual(
       getLocals({type: t.Str, label: 'defaultLabel', auto: 'labels'}).label,
@@ -33492,8 +33472,8 @@ test('Textbox', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.Str, auto: 'placeholders'}, {label: 'mylabel'}).placeholder,
-      null,
-      'should be null if a label is specified');
+      undefined,
+      'should be undefined if a label is specified');
 
     tape.strictEqual(
       getLocals({type: t.Str, auto: 'labels'}, {placeholder: 'myplaceholder'}).placeholder,
@@ -33512,8 +33492,8 @@ test('Textbox', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.Str, auto: 'labels'}).placeholder,
-      null,
-      'should be null if auto !== placeholders');
+      undefined,
+      'should be undefined if auto !== placeholders');
 
     tape.strictEqual(
       getLocals({type: t.maybe(t.Str), label: 'defaultLabel', auto: 'placeholders'}).placeholder,
@@ -33527,8 +33507,8 @@ test('Textbox', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.Str}).disabled,
-      null,
-      'default disabled should be null');
+      undefined,
+      'default disabled should be undefined');
 
     tape.strictEqual(
       getLocals({type: t.Str}, {disabled: true}).disabled,
@@ -33618,8 +33598,8 @@ test('Textbox', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.Str}).error,
-      null,
-      'default error should be null');
+      undefined,
+      'default error should be undefined');
 
     tape.strictEqual(
       getLocals({type: t.Str}, {error: 'myerror'}).error,
@@ -33686,8 +33666,8 @@ test('Textbox', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.Str}).autoFocus,
-      null,
-      'default autoFocus should be null');
+      undefined,
+      'default autoFocus should be undefined');
 
     tape.strictEqual(
       getLocals({type: t.Str}, {autoFocus: true}).autoFocus,
@@ -33755,7 +33735,7 @@ test('Textbox', function (tape) {
 
 
 
-},{"../../.":1,"../../lib/components/Textbox":9,"../../lib/skins/bootstrap":15,"./util":261,"react":182,"react-vdom":27,"tape":183}],260:[function(require,module,exports){
+},{"../../.":1,"../../lib/components/Textbox":10,"../../lib/skins/bootstrap":15,"./util":261,"react":182,"react-vdom":27,"tape":183}],260:[function(require,module,exports){
 require('./Checkbox');
 require('./Textbox');
 require('./Select');
@@ -33790,7 +33770,7 @@ function getLocalsFactory(factory) {
     if (React.version.indexOf('0.13') !== -1) {
       x = new factory({
         ctx: getContext(ctx),
-        options: options,
+        options: options || {},
         value: value,
         onChange: onChange || noop
       });

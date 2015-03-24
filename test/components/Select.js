@@ -34,8 +34,8 @@ test('Select', function (tape) {
 
     tape.strictEqual(
       getLocals({type: Country}).disabled,
-      null,
-      'default disabled should be null');
+      undefined,
+      'default disabled should be undefined');
 
     tape.strictEqual(
       getLocals({type: Country}, {disabled: true}).disabled,
@@ -53,8 +53,8 @@ test('Select', function (tape) {
 
     tape.strictEqual(
       getLocals({type: Country}).label,
-      null,
-      'should default to null');
+      undefined,
+      'should default to undefined');
 
     tape.strictEqual(
       getLocals({type: Country, label: 'defaultLabel', auto: 'labels'}).label,
@@ -145,8 +145,8 @@ test('Select', function (tape) {
 
     tape.strictEqual(
       getLocals({type: Country}).error,
-      null,
-      'default error should be null');
+      undefined,
+      'default error should be undefined');
 
     tape.strictEqual(
       getLocals({type: Country}, {error: 'myerror'}).error,
@@ -213,8 +213,8 @@ test('Select', function (tape) {
 
     tape.strictEqual(
       getLocals({type: Country}).autoFocus,
-      null,
-      'default autoFocus should be null');
+      undefined,
+      'default autoFocus should be undefined');
 
     tape.strictEqual(
       getLocals({type: Country}, {autoFocus: true}).autoFocus,
@@ -243,8 +243,8 @@ test('Select', function (tape) {
       ]}).options,
       [
         {value: '', text: '-'},
-        {value: 'IT', text: 'Italia', disabled: null},
-        {value: 'US', text: 'Stati Uniti', disabled: null}
+        {value: 'IT', text: 'Italia'},
+        {value: 'US', text: 'Stati Uniti'}
       ],
       'should handle `option` option');
 
@@ -281,7 +281,7 @@ test('Select', function (tape) {
     tape.deepEqual(
       getLocals({type: Country}, {nullOption: {value: '-1', text: 'my text'}}).options,
       [
-        {value: '-1', text: 'my text', disabled: null},
+        {value: '-1', text: 'my text'},
         {value: 'IT', text: 'Italy'},
         {value: 'US', text: 'United States'},
         {value: 'FR', text: 'France'}

@@ -24,7 +24,7 @@ function getLocalsFactory(factory) {
     if (React.version.indexOf('0.13') !== -1) {
       x = new factory({
         ctx: getContext(ctx),
-        options: options,
+        options: options || {},
         value: value,
         onChange: onChange || noop
       });

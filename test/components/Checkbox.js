@@ -28,8 +28,8 @@ test('Checkbox', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.Bool}, {label: 'mylabel'}).disabled,
-      null,
-      'default disabled should be null');
+      undefined,
+      'default disabled should be undefined');
 
     tape.strictEqual(
       getLocals({type: t.Bool}, {label: 'mylabel', disabled: true}).disabled,
@@ -118,8 +118,8 @@ test('Checkbox', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.Bool}).error,
-      null,
-      'default error should be null');
+      undefined,
+      'default error should be undefined');
 
     tape.strictEqual(
       getLocals({type: t.Bool}, {error: 'myerror'}).error,
@@ -186,8 +186,8 @@ test('Checkbox', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.Bool}).autoFocus,
-      null,
-      'default autoFocus should be null');
+      undefined,
+      'default autoFocus should be undefined');
 
     tape.strictEqual(
       getLocals({type: t.Bool}, {autoFocus: true}).autoFocus,

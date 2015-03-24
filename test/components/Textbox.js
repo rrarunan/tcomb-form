@@ -52,8 +52,8 @@ test('Textbox', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.Str}).label,
-      null,
-      'should default to null');
+      undefined,
+      'should default to undefined');
 
     tape.strictEqual(
       getLocals({type: t.Str, label: 'defaultLabel', auto: 'labels'}).label,
@@ -97,8 +97,8 @@ test('Textbox', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.Str, auto: 'placeholders'}, {label: 'mylabel'}).placeholder,
-      null,
-      'should be null if a label is specified');
+      undefined,
+      'should be undefined if a label is specified');
 
     tape.strictEqual(
       getLocals({type: t.Str, auto: 'labels'}, {placeholder: 'myplaceholder'}).placeholder,
@@ -117,8 +117,8 @@ test('Textbox', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.Str, auto: 'labels'}).placeholder,
-      null,
-      'should be null if auto !== placeholders');
+      undefined,
+      'should be undefined if auto !== placeholders');
 
     tape.strictEqual(
       getLocals({type: t.maybe(t.Str), label: 'defaultLabel', auto: 'placeholders'}).placeholder,
@@ -132,8 +132,8 @@ test('Textbox', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.Str}).disabled,
-      null,
-      'default disabled should be null');
+      undefined,
+      'default disabled should be undefined');
 
     tape.strictEqual(
       getLocals({type: t.Str}, {disabled: true}).disabled,
@@ -223,8 +223,8 @@ test('Textbox', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.Str}).error,
-      null,
-      'default error should be null');
+      undefined,
+      'default error should be undefined');
 
     tape.strictEqual(
       getLocals({type: t.Str}, {error: 'myerror'}).error,
@@ -291,8 +291,8 @@ test('Textbox', function (tape) {
 
     tape.strictEqual(
       getLocals({type: t.Str}).autoFocus,
-      null,
-      'default autoFocus should be null');
+      undefined,
+      'default autoFocus should be undefined');
 
     tape.strictEqual(
       getLocals({type: t.Str}, {autoFocus: true}).autoFocus,
