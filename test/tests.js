@@ -231,7 +231,6 @@ module.exports = {
 },{"react":182,"tcomb-validation":195}],3:[function(require,module,exports){
 'use strict';
 
-var React = require('react');
 var t = require('tcomb-validation');
 var api = require('../api');
 var skin = require('../skin');
@@ -285,7 +284,7 @@ Checkbox.prototype.render = function () {
 
 module.exports = Checkbox;
 
-},{"../api":2,"../skin":14,"../util/extend":16,"./Component":4,"debug":23,"react":182,"tcomb-validation":195,"uvdom/react":221}],4:[function(require,module,exports){
+},{"../api":2,"../skin":14,"../util/extend":16,"./Component":4,"debug":23,"tcomb-validation":195,"uvdom/react":221}],4:[function(require,module,exports){
 'use strict';
 
 var React = require('react');
@@ -491,6 +490,14 @@ List.prototype.onChange = function(value, keys) {
   }.bind(this));
 };
 
+List.prototype.componentWillReceiveProps = function (props) {
+  var value = this.getStateValue(props.value);
+  this.setState({
+    value: value,
+    keys: justify(value, this.state.keys)
+  });
+};
+
 List.prototype.getValue = function () {
   var report = this.props.ctx.report;
   var value = [];
@@ -649,7 +656,6 @@ module.exports = List;
 },{"../api":2,"../getComponent":12,"../skin":14,"../util/extend":16,"../util/getReport":18,"../util/merge":20,"../util/move":21,"../util/uuid":22,"./Component":4,"debug":23,"react":182,"tcomb-validation":195,"uvdom/react":221}],7:[function(require,module,exports){
 'use strict';
 
-var React = require('react');
 var t = require('tcomb-validation');
 var api = require('../api');
 var skin = require('../skin');
@@ -714,10 +720,9 @@ Radio.prototype.render = function () {
 
 module.exports = Radio;
 
-},{"../api":2,"../skin":14,"../util/extend":16,"../util/getOptionsOfEnum":17,"./Component":4,"debug":23,"react":182,"tcomb-validation":195,"uvdom/react":221}],8:[function(require,module,exports){
+},{"../api":2,"../skin":14,"../util/extend":16,"../util/getOptionsOfEnum":17,"./Component":4,"debug":23,"tcomb-validation":195,"uvdom/react":221}],8:[function(require,module,exports){
 'use strict';
 
-var React = require('react');
 var t = require('tcomb-validation');
 var api = require('../api');
 var skin = require('../skin');
@@ -806,7 +811,7 @@ Select.prototype.render = function () {
 
 module.exports = Select;
 
-},{"../api":2,"../skin":14,"../util/extend":16,"../util/getOptionsOfEnum":17,"../util/getReport":18,"./Component":4,"debug":23,"react":182,"tcomb-validation":195,"uvdom/react":221}],9:[function(require,module,exports){
+},{"../api":2,"../skin":14,"../util/extend":16,"../util/getOptionsOfEnum":17,"../util/getReport":18,"./Component":4,"debug":23,"tcomb-validation":195,"uvdom/react":221}],9:[function(require,module,exports){
 'use strict';
 
 var React = require('react');
@@ -963,7 +968,6 @@ module.exports = Struct;
 },{"../api":2,"../getComponent":12,"../skin":14,"../util/extend":16,"../util/getReport":18,"../util/humanize":19,"../util/merge":20,"./Component":4,"debug":23,"react":182,"tcomb-validation":195,"uvdom/react":221}],10:[function(require,module,exports){
 'use strict';
 
-var React = require('react');
 var t = require('tcomb-validation');
 var api = require('../api');
 var skin = require('../skin');
@@ -1017,7 +1021,7 @@ Textbox.prototype.render = function () {
 
 module.exports = Textbox;
 
-},{"../api":2,"../skin":14,"../util/extend":16,"./Component":4,"debug":23,"react":182,"tcomb-validation":195,"uvdom/react":221}],11:[function(require,module,exports){
+},{"../api":2,"../skin":14,"../util/extend":16,"./Component":4,"debug":23,"tcomb-validation":195,"uvdom/react":221}],11:[function(require,module,exports){
 'use strict';
 
 var api = require('./api');
